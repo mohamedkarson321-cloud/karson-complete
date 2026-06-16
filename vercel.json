@@ -3,7 +3,7 @@
   "buildCommand": "npm run db:migrate:prod && npm run build",
   "outputDirectory": ".next",
   "installCommand": "npm ci",
-  "regions": ["iad1", "sfo1", "lhr1"],
+  "regions": ["iad1"],
   "functions": {
     "app/api/**": {
       "maxDuration": 30
