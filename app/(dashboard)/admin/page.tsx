@@ -105,8 +105,8 @@ export default function AdminPage() {
             <a href="/admin/contacts" className="text-xs text-blue-400 hover:text-blue-300">View all</a>
           </div>
           <div className="space-y-3">
-            {RECENT_CONTACTS.map((contact) => (
-              <div key={contact.email} className="p-4 rounded-xl bg-white/3 border border-white/5 hover:border-white/10 transition-all cursor-pointer">
+           {RECENT_CONTACTS.map((contact, index) => (
+              <div key={index} className="p-4 rounded-xl bg-white/3 border border-white/5 hover:border-white/10 transition-all cursor-pointer">
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="text-sm font-medium text-white">{contact.name}</p>
