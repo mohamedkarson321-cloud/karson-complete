@@ -1,0 +1,28 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run db:migrate:prod && npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm ci",
+  "regions": ["iad1", "sfo1", "lhr1"],
+  "functions": {
+    "app/api/**": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://karson.ai" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, PATCH, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap"
+    }
+  ]
+}

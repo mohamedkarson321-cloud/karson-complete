@@ -1,0 +1,932 @@
+// KARSON Platform - Complete Database Schema
+// Version: 1.0.0
+// Generated: Production-Ready
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTHENTICATION & USERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model User {
+  id               String             @id @default(cuid())
+  name             String?
+  email            String             @unique
+  emailVerified    DateTime?          @map("email_verified")
+  image            String?
+  password         String?
+  phone            String?
+  bio              String?            @db.Text
+  company          String?
+  website          String?
+  location         String?
+  timezone         String?            @default("UTC")
+  locale           String?            @default("en")
+  theme            String?            @default("dark")
+  role             UserRole           @default(CLIENT)
+  status           UserStatus         @default(ACTIVE)
+  twoFactorEnabled Boolean            @default(false) @map("two_factor_enabled")
+  twoFactorSecret  String?            @map("two_factor_secret")
+  lastLoginAt      DateTime?          @map("last_login_at")
+  lastLoginIp      String?            @map("last_login_ip")
+  loginCount       Int                @default(0) @map("login_count")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  deletedAt        DateTime?          @map("deleted_at")
+  accounts         Account[]
+  sessions         Session[]
+  projects         Project[]
+  notifications    Notification[]
+  messages         Message[]          @relation("SentMessages")
+  receivedMessages Message[]          @relation("ReceivedMessages")
+  blogPosts        BlogPost[]         @relation("AuthorPosts")
+  contactRequests  ContactRequest[]
+  userPermissions  UserPermission[]
+  activities       UserActivity[]
+  invoices         Invoice[]
+  subscriptions    Subscription[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  EDITOR
+  CLIENT
+  GUEST
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  DELETED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROLES & PERMISSIONS (RBAC)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  slug        String           @unique
+  description String?
+  color       String?          @default("#6B7280")
+  isSystem    Boolean          @default(false) @map("is_system")
+  priority    Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  slug        String           @unique
+  description String?
+  resource    String
+  action      PermissionAction
+  createdAt   DateTime         @default(now()) @map("created_at")
+  roles       RolePermission[]
+  users       UserPermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedAt    DateTime   @default(now()) @map("granted_at")
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String     @map("user_id")
+  permissionId String     @map("permission_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedAt    DateTime   @default(now()) @map("granted_at")
+  grantedBy    String?    @map("granted_by")
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  MANAGE
+  PUBLISH
+  APPROVE
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVICES & PRICING
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Service {
+  id            String          @id @default(cuid())
+  name          String
+  slug          String          @unique
+  tagline       String
+  description   String          @db.Text
+  longDescription String?       @db.Text
+  icon          String?
+  image         String?
+  category      ServiceCategory
+  features      String[]
+  technologies  String[]
+  startingPrice Float?          @map("starting_price")
+  priceUnit     String?         @map("price_unit")
+  duration      String?
+  deliverables  String[]
+  isActive      Boolean         @default(true) @map("is_active")
+  isFeatured    Boolean         @default(false) @map("is_featured")
+  sortOrder     Int             @default(0) @map("sort_order")
+  seoTitle      String?         @map("seo_title")
+  seoDescription String?        @map("seo_description")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  projects      Project[]
+
+  @@map("services")
+}
+
+enum ServiceCategory {
+  AI_SOLUTIONS
+  WEB_DEVELOPMENT
+  MOBILE_APPS
+  CLOUD_SOLUTIONS
+  DATA_ANALYTICS
+  AUTOMATION
+  CYBERSECURITY
+  CONSULTING
+}
+
+model PricingPlan {
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  tagline         String?
+  description     String?      @db.Text
+  monthlyPrice    Float?       @map("monthly_price")
+  annualPrice     Float?       @map("annual_price")
+  currency        String       @default("USD")
+  tier            PricingTier
+  features        String[]
+  limitations     String[]
+  isActive        Boolean      @default(true) @map("is_active")
+  isPopular       Boolean      @default(false) @map("is_popular")
+  isFeatured      Boolean      @default(false) @map("is_featured")
+  badge           String?
+  buttonLabel     String?      @default("Get Started") @map("button_label")
+  buttonVariant   String?      @default("default") @map("button_variant")
+  sortOrder       Int          @default(0) @map("sort_order")
+  stripePriceId   String?      @unique @map("stripe_price_id")
+  stripeProductId String?      @map("stripe_product_id")
+  metadata        Json?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  subscriptions   Subscription[]
+
+  @@map("pricing_plans")
+}
+
+enum PricingTier {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+  CUSTOM
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  userId           String             @map("user_id")
+  planId           String             @map("plan_id")
+  status           SubscriptionStatus
+  currentPeriodStart DateTime          @map("current_period_start")
+  currentPeriodEnd DateTime           @map("current_period_end")
+  cancelAtPeriodEnd Boolean           @default(false) @map("cancel_at_period_end")
+  canceledAt       DateTime?          @map("canceled_at")
+  trialStart       DateTime?          @map("trial_start")
+  trialEnd         DateTime?          @map("trial_end")
+  stripeSubscriptionId String?        @unique @map("stripe_subscription_id")
+  stripeCustomerId String?            @map("stripe_customer_id")
+  metadata         Json?
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan             PricingPlan        @relation(fields: [planId], references: [id])
+  invoices         Invoice[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+  INCOMPLETE
+  PAUSED
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  userId         String        @map("user_id")
+  subscriptionId String?       @map("subscription_id")
+  number         String        @unique
+  status         InvoiceStatus
+  subtotal       Float
+  tax            Float         @default(0)
+  total          Float
+  currency       String        @default("USD")
+  description    String?
+  dueDate        DateTime?     @map("due_date")
+  paidAt         DateTime?     @map("paid_at")
+  stripeInvoiceId String?      @unique @map("stripe_invoice_id")
+  hostedInvoiceUrl String?     @map("hosted_invoice_url")
+  invoicePdf     String?       @map("invoice_pdf")
+  metadata       Json?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  user           User          @relation(fields: [userId], references: [id])
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROJECTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  slug           String        @unique
+  description    String        @db.Text
+  longDescription String?      @db.Text
+  clientId       String?       @map("client_id")
+  serviceId      String?       @map("service_id")
+  category       String?
+  tags           String[]
+  status         ProjectStatus @default(PLANNING)
+  priority       ProjectPriority @default(MEDIUM)
+  budget         Float?
+  spent          Float?        @default(0)
+  startDate      DateTime?     @map("start_date")
+  endDate        DateTime?     @map("end_date")
+  completedAt    DateTime?     @map("completed_at")
+  progress       Int           @default(0)
+  thumbnailUrl   String?       @map("thumbnail_url")
+  images         String[]
+  liveUrl        String?       @map("live_url")
+  repoUrl        String?       @map("repo_url")
+  technologies   String[]
+  features       String[]
+  challenges     String?       @db.Text
+  solution       String?       @db.Text
+  results        String?       @db.Text
+  testimonialId  String?       @unique @map("testimonial_id")
+  isFeatured     Boolean       @default(false) @map("is_featured")
+  isPublic       Boolean       @default(true) @map("is_public")
+  viewCount      Int           @default(0) @map("view_count")
+  seoTitle       String?       @map("seo_title")
+  seoDescription String?       @map("seo_description")
+  metadata       Json?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  deletedAt      DateTime?     @map("deleted_at")
+  client         User?         @relation(fields: [clientId], references: [id])
+  service        Service?      @relation(fields: [serviceId], references: [id])
+  milestones     Milestone[]
+  tasks          Task[]
+  testimonial    Testimonial?  @relation(fields: [testimonialId], references: [id])
+
+  @@index([clientId])
+  @@index([status])
+  @@index([isFeatured])
+  @@index([createdAt])
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  REVIEW
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Milestone {
+  id          String          @id @default(cuid())
+  projectId   String          @map("project_id")
+  title       String
+  description String?         @db.Text
+  status      MilestoneStatus @default(PENDING)
+  dueDate     DateTime?       @map("due_date")
+  completedAt DateTime?       @map("completed_at")
+  sortOrder   Int             @default(0) @map("sort_order")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+
+  @@index([projectId])
+  @@map("milestones")
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  projectId   String     @map("project_id")
+  milestoneId String?    @map("milestone_id")
+  title       String
+  description String?    @db.Text
+  status      TaskStatus @default(TODO)
+  priority    Int        @default(0)
+  dueDate     DateTime?  @map("due_date")
+  completedAt DateTime?  @map("completed_at")
+  estimatedHours Float?  @map("estimated_hours")
+  actualHours Float?     @map("actual_hours")
+  sortOrder   Int        @default(0) @map("sort_order")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone   Milestone? @relation(fields: [milestoneId], references: [id])
+
+  @@index([projectId])
+  @@index([status])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BLOG
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BlogPost {
+  id             String          @id @default(cuid())
+  title          String
+  slug           String          @unique
+  excerpt        String          @db.Text
+  content        String          @db.Text
+  authorId       String          @map("author_id")
+  categoryId     String?         @map("category_id")
+  status         BlogPostStatus  @default(DRAFT)
+  featuredImage  String?         @map("featured_image")
+  featuredImageAlt String?       @map("featured_image_alt")
+  tags           String[]
+  readingTime    Int             @default(5) @map("reading_time")
+  viewCount      Int             @default(0) @map("view_count")
+  likeCount      Int             @default(0) @map("like_count")
+  commentCount   Int             @default(0) @map("comment_count")
+  isFeatured     Boolean         @default(false) @map("is_featured")
+  isPinned       Boolean         @default(false) @map("is_pinned")
+  publishedAt    DateTime?       @map("published_at")
+  scheduledAt    DateTime?       @map("scheduled_at")
+  seoTitle       String?         @map("seo_title")
+  seoDescription String?         @map("seo_description")
+  seoKeywords    String[]        @map("seo_keywords")
+  ogImage        String?         @map("og_image")
+  canonicalUrl   String?         @map("canonical_url")
+  metadata       Json?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+  author         User            @relation("AuthorPosts", fields: [authorId], references: [id])
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  comments       Comment[]
+
+  @@index([slug])
+  @@index([authorId])
+  @@index([status])
+  @@index([isFeatured])
+  @@index([publishedAt])
+  @@map("blog_posts")
+}
+
+enum BlogPostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+model Category {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  color       String?    @default("#3B82F6")
+  icon        String?
+  image       String?
+  parentId    String?    @map("parent_id")
+  sortOrder   Int        @default(0) @map("sort_order")
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  parent      Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children    Category[] @relation("SubCategories")
+  blogPosts   BlogPost[]
+
+  @@map("categories")
+}
+
+model Comment {
+  id         String        @id @default(cuid())
+  postId     String        @map("post_id")
+  parentId   String?       @map("parent_id")
+  authorName String        @map("author_name")
+  authorEmail String       @map("author_email")
+  authorUrl  String?       @map("author_url")
+  content    String        @db.Text
+  status     CommentStatus @default(PENDING)
+  ipAddress  String?       @map("ip_address")
+  userAgent  String?       @map("user_agent")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  post       BlogPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent     Comment?      @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[]     @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([status])
+  @@map("comments")
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  SPAM
+  TRASH
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TESTIMONIALS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Testimonial {
+  id           String   @id @default(cuid())
+  clientName   String   @map("client_name")
+  clientTitle  String   @map("client_title")
+  clientCompany String? @map("client_company")
+  clientImage  String?  @map("client_image")
+  clientUrl    String?  @map("client_url")
+  content      String   @db.Text
+  rating       Int      @default(5)
+  isFeatured   Boolean  @default(false) @map("is_featured")
+  isVerified   Boolean  @default(false) @map("is_verified")
+  isPublished  Boolean  @default(false) @map("is_published")
+  sortOrder    Int      @default(0) @map("sort_order")
+  source       String?
+  sourceUrl    String?  @map("source_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  project      Project?
+
+  @@index([isFeatured])
+  @@index([isPublished])
+  @@map("testimonials")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTACT & LEADS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ContactRequest {
+  id          String              @id @default(cuid())
+  userId      String?             @map("user_id")
+  name        String
+  email       String
+  phone       String?
+  company     String?
+  website     String?
+  subject     String
+  message     String              @db.Text
+  service     String?
+  budget      String?
+  timeline    String?
+  source      String?
+  ipAddress   String?             @map("ip_address")
+  userAgent   String?             @map("user_agent")
+  status      ContactRequestStatus @default(NEW)
+  priority    ContactPriority     @default(NORMAL)
+  assignedTo  String?             @map("assigned_to")
+  notes       String?             @db.Text
+  respondedAt DateTime?           @map("responded_at")
+  closedAt    DateTime?           @map("closed_at")
+  metadata    Json?
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  user        User?               @relation(fields: [userId], references: [id])
+
+  @@index([email])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("contact_requests")
+}
+
+enum ContactRequestStatus {
+  NEW
+  READ
+  IN_PROGRESS
+  RESPONDED
+  CLOSED
+  SPAM
+}
+
+enum ContactPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model NewsletterSubscriber {
+  id          String              @id @default(cuid())
+  email       String              @unique
+  name        String?
+  status      SubscriberStatus    @default(ACTIVE)
+  source      String?
+  tags        String[]
+  metadata    Json?
+  confirmedAt DateTime?           @map("confirmed_at")
+  unsubscribedAt DateTime?        @map("unsubscribed_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([status])
+  @@map("newsletter_subscribers")
+}
+
+enum SubscriberStatus {
+  PENDING
+  ACTIVE
+  UNSUBSCRIBED
+  BOUNCED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MESSAGING & NOTIFICATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Message {
+  id         String        @id @default(cuid())
+  senderId   String        @map("sender_id")
+  receiverId String        @map("receiver_id")
+  subject    String?
+  content    String        @db.Text
+  type       MessageType   @default(TEXT)
+  status     MessageStatus @default(SENT)
+  attachments String[]
+  readAt     DateTime?     @map("read_at")
+  deletedAt  DateTime?     @map("deleted_at")
+  metadata   Json?
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  sender     User          @relation("SentMessages", fields: [senderId], references: [id])
+  receiver   User          @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  FILE
+  IMAGE
+  SYSTEM
+  NOTIFICATION
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  DELETED
+  FAILED
+}
+
+model Notification {
+  id         String             @id @default(cuid())
+  userId     String             @map("user_id")
+  title      String
+  message    String             @db.Text
+  type       NotificationType
+  action     String?
+  actionUrl  String?            @map("action_url")
+  icon       String?
+  isRead     Boolean            @default(false) @map("is_read")
+  readAt     DateTime?          @map("read_at")
+  metadata   Json?
+  createdAt  DateTime           @default(now()) @map("created_at")
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  PROJECT_UPDATE
+  MESSAGE
+  BILLING
+  SYSTEM
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CAREERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model JobListing {
+  id              String     @id @default(cuid())
+  title           String
+  slug            String     @unique
+  department      String
+  location        String
+  type            JobType
+  level           JobLevel
+  description     String     @db.Text
+  requirements    String[]
+  responsibilities String[]
+  niceToHave      String[]
+  benefits        String[]
+  salaryMin       Float?     @map("salary_min")
+  salaryMax       Float?     @map("salary_max")
+  salaryCurrency  String?    @default("USD") @map("salary_currency")
+  isActive        Boolean    @default(true) @map("is_active")
+  isFeatured      Boolean    @default(false) @map("is_featured")
+  isRemote        Boolean    @default(false) @map("is_remote")
+  applicationUrl  String?    @map("application_url")
+  expiresAt       DateTime?  @map("expires_at")
+  viewCount       Int        @default(0) @map("view_count")
+  applyCount      Int        @default(0) @map("apply_count")
+  seoTitle        String?    @map("seo_title")
+  seoDescription  String?    @map("seo_description")
+  metadata        Json?
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  applications    JobApplication[]
+
+  @@index([isActive])
+  @@index([department])
+  @@map("job_listings")
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  FREELANCE
+  INTERNSHIP
+}
+
+enum JobLevel {
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  PRINCIPAL
+  DIRECTOR
+  VP
+  C_LEVEL
+}
+
+model JobApplication {
+  id           String            @id @default(cuid())
+  jobId        String            @map("job_id")
+  firstName    String            @map("first_name")
+  lastName     String            @map("last_name")
+  email        String
+  phone        String?
+  linkedinUrl  String?           @map("linkedin_url")
+  portfolioUrl String?           @map("portfolio_url")
+  githubUrl    String?           @map("github_url")
+  resumeUrl    String?           @map("resume_url")
+  coverLetter  String?           @db.Text @map("cover_letter")
+  experience   String?
+  skills       String[]
+  status       ApplicationStatus @default(RECEIVED)
+  notes        String?           @db.Text
+  rating       Int?
+  ipAddress    String?           @map("ip_address")
+  metadata     Json?
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  job          JobListing        @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+  @@index([email])
+  @@index([status])
+  @@map("job_applications")
+}
+
+enum ApplicationStatus {
+  RECEIVED
+  SCREENING
+  INTERVIEW
+  TECHNICAL
+  OFFER
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANALYTICS & TRACKING
+// ─────────────────────────────────────────────────────────────────────────────
+
+model UserActivity {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  type      String
+  action    String
+  resource  String?
+  resourceId String? @map("resource_id")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("user_activities")
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  title     String?
+  referrer  String?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  country   String?
+  city      String?
+  device    String?
+  browser   String?
+  os        String?
+  sessionId String?  @map("session_id")
+  duration  Int?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([path])
+  @@index([createdAt])
+  @@map("page_views")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SITE SETTINGS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SiteSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  type      String   @default("string")
+  group     String?
+  isPublic  Boolean  @default(false) @map("is_public")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([key])
+  @@index([group])
+  @@map("site_settings")
+}
+
+model MediaAsset {
+  id         String   @id @default(cuid())
+  name       String
+  fileName   String   @map("file_name")
+  fileSize   Int      @map("file_size")
+  mimeType   String   @map("mime_type")
+  url        String
+  thumbnailUrl String? @map("thumbnail_url")
+  alt        String?
+  caption    String?
+  width      Int?
+  height     Int?
+  folder     String?
+  tags       String[]
+  uploadedBy String?  @map("uploaded_by")
+  isPublic   Boolean  @default(true) @map("is_public")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([mimeType])
+  @@index([folder])
+  @@map("media_assets")
+}
