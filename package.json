@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build --verbose",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "prisma db push",
     "db:migrate:prod": "prisma db push",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
