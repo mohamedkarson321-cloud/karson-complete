@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -12,7 +12,8 @@ import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export default function LoginPage() {
+// 1️⃣ ده الكومبوننت اللي جواه الفورم والـ Logic بتاعك بالظبط
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
@@ -157,5 +158,18 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// 2️⃣ ده الكومبوننت الأساسي اللي متغلف بالـ Suspense عشان فيرسيل يعديه في الـ Build
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white text-sm">
+        Loading login form...
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
