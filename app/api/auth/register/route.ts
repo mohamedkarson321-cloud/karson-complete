@@ -7,9 +7,7 @@ import { z } from "zod";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, password } = await registerSchema
-      .pick({ name: true, email: true, password: true })
-      .parseAsync(body);
+    const { name, email, password } = await registerSchema.parseAsync(body);
 
     // Check for existing user
     const existing = await prisma.user.findUnique({
