@@ -1,5 +1,6 @@
-import type { DefaultSession, DefaultUser } from "next-auth";
+import type { DefaultSession, User } from "next-auth";
 import type { UserRole } from "@prisma/client";
+import { JWT } from "next-auth/jwt"; // السطر ده هو السحر اللي هيقفل الأيرور الأخير فورا!
 
 // ─── NextAuth type extensions ─────────────────────────────────────────────────
 
@@ -11,7 +12,7 @@ declare module "next-auth" {
     } & DefaultSession["user"];
   }
 
-  interface User extends DefaultUser {
+interface User {
     role?: UserRole;
   }
 }
